@@ -1,18 +1,17 @@
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from flask import Flask, render_template, request, jsonify
-from flask_cors import CORS 
+from flask import Flask, jsonify, send_from_directory
+from flask_cors import CORS
 from config import DATABASE_URL
-
 from models import db
 from models.user import User
 from models.scooter import Scooter
 from models.ride import Ride
+import os
 
-app = Flask(__name__)
-CORS(app)
+# Определяем корневую папку проекта
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(__name__, static_folder=os.path.join(BASE_DIR, 'static'))
+CORS(app, origins=["*"], allow_headers=["*"], supports_credentials=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -27,43 +26,64 @@ def index():
 
 @app.route('/tma')
 def tma_index():
-    return app.send_static_file('tma/index.html')
+    try:
+        return send_from_directory(
+            os.path.join(BASE_DIR, 'static', 'tma'),
+            'index.html'
+        )
+    except Exception as e:
+        return f"Ошибка загрузки TMA: {str(e)}", 500
 
 @app.route('/api/scooters')
 def get_scooters():
-    scooters = Scooter.query.all()
-    result = []
-    for s in scooters:
-        result.append({
+    try:
+        scooters = Scooter.query.all()
+        result = [{
             'id': s.id,
             'imei': s.imei,
             'lat': s.lat,
             'lng': s.lng,
             'battery': s.battery,
             'status': s.status
-        })
-    return jsonify(result)
+        } for s in scooters]
+        return jsonify(result)
+    except Exception as e:
+        return f"Ошибка API: {str(e)}", 500
 
-@app.route('/add_test_scooters')
-def add_test_scooters():
-    from models.scooter import Scooter
+@app.route('/generate_scooters_tuymazy')
+def generate_scooters_tuymazy():
+    from random import uniform, choice
 
-    # Удалим старые данные (для теста)
+    # Удаляем старые самокаты
     Scooter.query.delete()
-
-    # Добавим 3 тестовых самоката
-    s1 = Scooter(imei="123456789012345", lat=55.75, lng=37.62, battery=90, status="available")
-    s2 = Scooter(imei="123456789012346", lat=55.76, lng=37.63, battery=50, status="available")
-    s3 = Scooter(imei="123456789012347", lat=55.77, lng=37.64, battery=20, status="offline")
-
-    db.session.add(s1)
-    db.session.add(s2)
-    db.session.add(s3)
     db.session.commit()
 
-    return "3 тестовых самоката добавлены!"    
+    center_lat = 54.6046
+    center_lng = 53.7066
+
+    statuses = ['available', 'available', 'available', 'in_use', 'offline']
+    batteries = list(range(20, 101))  # от 20 до 100%
+
+    scooters = []
+    for i in range(1, 16):
+        lat = round(center_lat + uniform(-0.01, 0.01), 6)
+        lng = round(center_lng + uniform(-0.01, 0.01), 6)
+        battery = choice(batteries)
+        status = choice(statuses)
+
+        s = Scooter(
+            imei=f"35{str(i).zfill(13)}",
+            lat=lat,
+            lng=lng,
+            battery=battery,
+            status=status
+        )
+        scooters.append(s)
+        db.session.add(s)
+
+    db.session.commit()
+    return f"✅ 15 самокатов добавлено в Туймазы!"
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port, debug=False)

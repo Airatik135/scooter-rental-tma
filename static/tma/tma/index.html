@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Whoosh - Аренда самокатов в Туймазах</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #f0f2f5;
+        }
+
+        #map {
+            height: 60%;
+            width: 100%;
+        }
+
+        #scooters-list {
+            height: 40%;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #ffffff;
+        }
+
+        .scooter-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .scooter {
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .scooter h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .scooter p {
+            margin: 5px 0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .btn-rent {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin-top: 8px;
+            cursor: pointer;
+            border-radius: 20px;
+            width: 100%;
+        }
+
+        .btn-rent:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="scooters-list">
+        <div class="scooter-grid" id="scooters-container">Загрузка самокатов...</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        Telegram.WebApp.ready();
+
+        // Инициализация карты
+        const map = L.map('map').setView([54.6046, 53.7066], 14); // Центр Туймазов
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let markers = {};
+
+        // Загрузка самокатов с сервера
+        fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
+            .then(r => {
+                if (!r.ok) throw new Error('Network response was not ok');
+                return r.json();
+            })
+            .then(data => {
+                console.log('Самокаты:', data);
+                const container = document.getElementById('scooters-container');
+                container.innerHTML = '';
+
+                data.forEach(scooter => {
+                    // Добавляем маркер на карту
+                    const marker = L.marker([scooter.lat, scooter.lng]).addTo(map);
+                    marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
+
+                    // Сохраняем маркер
+                    markers[scooter.id] = marker;
+
+                    // Добавляем в сетку
+                    const div = document.createElement('div');
+                    div.className = 'scooter';
+                    div.innerHTML = `
+                        <h3>Ninebot Max Pro #${scooter.id}</h3>
+                        <p>📍 ${scooter.lat.toFixed(4)}, ${scooter.lng.toFixed(4)}</p>
+                        <p>🔋 Заряд: ${scooter.battery}%</p>
+                        <p>🚦 Статус: ${scooter.status === 'available' ? 'Доступен' : scooter.status === 'in_use' ? 'В аренде' : 'Неисправен'}</p>
+                        <button class="btn-rent" onclick="rent(${scooter.id})">Арендовать</button>
+                    `;
+                    container.appendChild(div);
+                });
+            })
+            .catch(err => {
+                console.error('Ошибка загрузки:', err);
+                document.getElementById('scooters-container').innerHTML = `<p>Ошибка: ${err.message}</p>`;
+            });
+
+        function rent(id) {
+            alert('Аренда самоката #' + id);
+        }
+    </script>
+</body>
+</html>
