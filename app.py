@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from config import DATABASE_URL
 from models import db
@@ -35,6 +35,41 @@ def tma_index():
     except Exception as e:
         return f"Ошибка загрузки TMA: {str(e)}", 500
 
+@app.route('/tma/assets/images/<path:filename>')
+def serve_image(filename):
+    return send_from_directory(os.path.join(BASE_DIR, 'static', 'tma', 'assets', 'images'), filename)
+
+@app.route('/api/check_user/<int:telegram_id>')
+def check_user(telegram_id):
+    user = User.query.filter_by(telegram_id=telegram_id).first()
+    if user:
+        return jsonify({'exists': True, 'user': {
+            'id': user.id,
+            'phone': user.phone,
+            'balance': user.balance
+        }})
+    return jsonify({'exists': False})
+
+@app.route('/api/register', methods=['POST'])
+def register_user():
+    data = request.json
+    user = User(
+        telegram_id=data['telegram_id'],
+        phone=data.get('phone'),
+        card_token=data.get('card_token'),
+        balance=0.0
+    )
+    try:
+        db.session.add(user)
+        db.session.commit()
+        return jsonify({'success': True, 'user': {
+            'id': user.id,
+            'phone': user.phone,
+            'balance': user.balance
+        }})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 @app.route('/api/scooters')
 def get_scooters():
     try:
@@ -70,10 +105,6 @@ def add_test_scooters():
     except Exception as e:
         return f"Ошибка: {str(e)}", 500
 
-@app.route('/tma/assets/images/<path:filename>')
-def serve_image(filename):
-    return send_from_directory(os.path.join(BASE_DIR, 'static', 'tma', 'assets', 'images'), filename)        
-
 @app.route('/generate_scooters_tuymazy')
 def generate_scooters_tuymazy():
     try:
@@ -84,7 +115,7 @@ def generate_scooters_tuymazy():
         center_lng = 53.7066
 
         statuses = ['available', 'available', 'available', 'in_use', 'offline']
-        batteries = list(range(20, 101))  # от 20 до 100%
+        batteries = list(range(20, 101))
 
         scooters = []
         for i in range(1, 16):
