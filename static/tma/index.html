@@ -31,9 +31,13 @@
         let markers = {};
 
         // Загрузка самокатов с сервера
-        fetch('https://tidy-schools-stare.loca.lt/api/scooters')
-            .then(response => response.json())
+        fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
+            .then(r => {
+                if (!r.ok) throw new Error('Network response was not ok');
+                return r.json();
+            })
             .then(data => {
+                console.log('Самокаты:', data);
                 const container = document.getElementById('scooters-list');
                 container.innerHTML = '';
 
@@ -41,8 +45,8 @@
                     // Добавляем маркер на карту
                     const marker = L.marker([scooter.lat, scooter.lng]).addTo(map);
                     marker.bindPopup(`<b>Самокат #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
-                    
-                    // Сохраняем маркер, чтобы потом очищать
+
+                    // Сохраняем маркер
                     markers[scooter.id] = marker;
 
                     // Добавляем в список
@@ -56,6 +60,10 @@
                     `;
                     container.appendChild(div);
                 });
+            })
+            .catch(err => {
+                console.error('Ошибка загрузки:', err);
+                document.getElementById('scooters-list').innerHTML = `<p>Ошибка: ${err.message}</p>`;
             });
 
         function rent(id) {
