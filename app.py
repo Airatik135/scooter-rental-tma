@@ -70,6 +70,10 @@ def add_test_scooters():
     except Exception as e:
         return f"Ошибка: {str(e)}", 500
 
+@app.route('/tma/assets/images/<path:filename>')
+def serve_image(filename):
+    return send_from_directory(os.path.join(BASE_DIR, 'static', 'tma', 'assets', 'images'), filename)        
+
 @app.route('/generate_scooters_tuymazy')
 def generate_scooters_tuymazy():
     try:

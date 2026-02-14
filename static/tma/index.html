@@ -83,14 +83,15 @@
     <script>
         Telegram.WebApp.ready();
 
-        // Инициализация карты
-        const map = L.map('map').setView([54.6046, 53.7066], 14); // Центр Туймазов
+        // Инициализация карты (Туймазы)
+        const map = L.map('map').setView([54.6046, 53.7066], 14);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         let markers = {};
+        let batteryCircles = {}; // Для обводки заряда
 
         // Загрузка самокатов с сервера
         fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
@@ -104,12 +105,37 @@
                 container.innerHTML = '';
 
                 data.forEach(scooter => {
-                    // Добавляем маркер на карту
-                    const marker = L.marker([scooter.lat, scooter.lng]).addTo(map);
-                    marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
+                    // Создаём кастомный маркер
+                    const icon = L.icon({
+                        iconUrl: 'https://scooter-rental-tma-production.up.railway.app/tma/assets/images/scooter-icon.png',
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32],
+                        popupAnchor: [0, -32]
+                    });
 
-                    // Сохраняем маркер
+                    const marker = L.marker([scooter.lat, scooter.lng], {icon: icon}).addTo(map);
+
+                    // Создаём круг для уровня заряда
+                    const circle = L.circleMarker([scooter.lat, scooter.lng], {
+                        radius: 20, // базовый радиус
+                        color: getColorByBattery(scooter.battery),
+                        fillColor: 'transparent',
+                        fillOpacity: 0,
+                        weight: 3
+                    }).addTo(map);
+
+                    // Устанавливаем "толщину" обводки в зависимости от заряда
+                    // Это делается через scale, а не через radius, чтобы не сдвигать маркер
+                    // Но Leaflet не поддерживает scale напрямую, поэтому используем radius
+                    // и немного увеличим его пропорционально
+                    circle.setRadius(Math.max(5, (scooter.battery / 100) * 20));
+
+                    // Сохраняем маркер и круг
                     markers[scooter.id] = marker;
+                    batteryCircles[scooter.id] = circle;
+
+                    // Добавляем popup
+                    marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
 
                     // Добавляем в сетку
                     const div = document.createElement('div');
@@ -131,6 +157,13 @@
 
         function rent(id) {
             alert('Аренда самоката #' + id);
+        }
+
+        // Вспомогательная функция для цвета обводки
+        function getColorByBattery(battery) {
+            if (battery > 70) return '#4CAF50'; // зелёный
+            if (battery > 30) return '#FF9800'; // оранжевый
+            return '#F44336'; // красный
         }
     </script>
 </body>
