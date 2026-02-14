@@ -25,6 +25,8 @@ with app.app_context():
 def index():
     return "<h1>Добро пожаловать в Whoosh API!</h1>"
 
+app.static_folder = 'static'
+
 @app.route('/tma')
 def tma_index():
     return app.send_static_file('tma/index.html')
