@@ -29,6 +29,10 @@ app.static_folder = 'static'
 
 @app.route('/tma')
 def tma_index():
+    return send_from_directory(os.path.join(app.root_path, 'static', 'tma'), 'index.html')
+
+@app.route('/tma')
+def tma_index():
     return app.send_static_file('tma/index.html')
 
 @app.route('/api/scooters')
