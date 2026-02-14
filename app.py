@@ -6,6 +6,7 @@ from models.user import User
 from models.scooter import Scooter
 from models.ride import Ride
 import os
+from random import uniform, choice
 
 # Определяем корневую папку проекта
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -50,39 +51,58 @@ def get_scooters():
     except Exception as e:
         return f"Ошибка API: {str(e)}", 500
 
+@app.route('/add_test_scooters')
+def add_test_scooters():
+    try:
+        Scooter.query.delete()
+        db.session.commit()
+
+        s1 = Scooter(imei="123456789012345", lat=55.75, lng=37.62, battery=90, status="available")
+        s2 = Scooter(imei="123456789012346", lat=55.76, lng=37.63, battery=50, status="available")
+        s3 = Scooter(imei="123456789012347", lat=55.77, lng=37.64, battery=20, status="offline")
+
+        db.session.add(s1)
+        db.session.add(s2)
+        db.session.add(s3)
+        db.session.commit()
+
+        return "✅ 3 тестовых самоката добавлены!"
+    except Exception as e:
+        return f"Ошибка: {str(e)}", 500
+
 @app.route('/generate_scooters_tuymazy')
 def generate_scooters_tuymazy():
-    from random import uniform, choice
+    try:
+        Scooter.query.delete()
+        db.session.commit()
 
-    # Удаляем старые самокаты
-    Scooter.query.delete()
-    db.session.commit()
+        center_lat = 54.6046
+        center_lng = 53.7066
 
-    center_lat = 54.6046
-    center_lng = 53.7066
+        statuses = ['available', 'available', 'available', 'in_use', 'offline']
+        batteries = list(range(20, 101))  # от 20 до 100%
 
-    statuses = ['available', 'available', 'available', 'in_use', 'offline']
-    batteries = list(range(20, 101))  # от 20 до 100%
+        scooters = []
+        for i in range(1, 16):
+            lat = round(center_lat + uniform(-0.01, 0.01), 6)
+            lng = round(center_lng + uniform(-0.01, 0.01), 6)
+            battery = choice(batteries)
+            status = choice(statuses)
 
-    scooters = []
-    for i in range(1, 16):
-        lat = round(center_lat + uniform(-0.01, 0.01), 6)
-        lng = round(center_lng + uniform(-0.01, 0.01), 6)
-        battery = choice(batteries)
-        status = choice(statuses)
+            s = Scooter(
+                imei=f"35{str(i).zfill(13)}",
+                lat=lat,
+                lng=lng,
+                battery=battery,
+                status=status
+            )
+            scooters.append(s)
+            db.session.add(s)
 
-        s = Scooter(
-            imei=f"35{str(i).zfill(13)}",
-            lat=lat,
-            lng=lng,
-            battery=battery,
-            status=status
-        )
-        scooters.append(s)
-        db.session.add(s)
-
-    db.session.commit()
-    return f"✅ 15 самокатов добавлено в Туймазы!"
+        db.session.commit()
+        return f"✅ 15 самокатов добавлено в Туймазы!"
+    except Exception as e:
+        return f"Ошибка: {str(e)}", 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
