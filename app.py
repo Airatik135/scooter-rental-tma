@@ -18,8 +18,21 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-with app.app_context():
-    db.create_all()
+import time
+
+def init_db():
+    for i in range(5):
+        try:
+            with app.app_context():
+                db.create_all()
+            print("✅ Таблицы созданы")
+            return
+        except Exception as e:
+            print(f"Попытка {i+1}/5: ошибка инициализации БД: {e}")
+            time.sleep(5)
+    raise RuntimeError("Не удалось подключиться к PostgreSQL")
+
+init_db()
 
 @app.route('/')
 def index():
