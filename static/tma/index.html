@@ -71,6 +71,14 @@
         .btn-rent:hover {
             background-color: #45a049;
         }
+
+        /* Для кастомных маркеров */
+        .scooter-marker img {
+            display: block;
+        }
+        .scooter-marker {
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body>
@@ -91,7 +99,40 @@
         }).addTo(map);
 
         let markers = {};
-        let batteryCircles = {}; // Для обводки заряда
+
+        // Функция для создания кастомного маркера с иконкой и обводкой
+        function createScooterIcon(battery, id) {
+            const color = battery > 70 ? '#4CAF50' :
+                         battery > 30 ? '#FF9800' : '#F44336';
+
+            // Радиус обводки зависит от заряда (от 12 до 24 px)
+            const radius = 12 + (battery / 100) * 12; // min 12, max 24
+            const iconSize = 30; // иконка 30x30
+
+            return L.divIcon({
+                className: 'scooter-marker',
+                html: `
+                    <div style="
+                        position: relative;
+                        width: ${radius * 2}px;
+                        height: ${radius * 2}px;
+                        border-radius: 50%;
+                        border: 3px solid ${color};
+                        background: transparent;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">
+                        <img src="https://scooter-rental-tma-production.up.railway.app/tma/assets/images/scooter-icon.png"
+                             width="${iconSize}" height="${iconSize}"
+                             style="position: relative; z-index: 1;">
+                    </div>
+                `,
+                popupAnchor: [0, -radius - 10],
+                iconSize: [radius * 2, radius * 2],
+                iconAnchor: [radius, radius]
+            });
+        }
 
         // Загрузка самокатов с сервера
         fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
@@ -106,36 +147,14 @@
 
                 data.forEach(scooter => {
                     // Создаём кастомный маркер
-                    const icon = L.icon({
-                        iconUrl: 'https://scooter-rental-tma-production.up.railway.app/tma/assets/images/scooter-icon.png',
-                        iconSize: [32, 32],
-                        iconAnchor: [16, 32],
-                        popupAnchor: [0, -32]
-                    });
-
+                    const icon = createScooterIcon(scooter.battery, scooter.id);
                     const marker = L.marker([scooter.lat, scooter.lng], {icon: icon}).addTo(map);
-
-                    // Создаём круг для уровня заряда
-                    const circle = L.circleMarker([scooter.lat, scooter.lng], {
-                        radius: 20, // базовый радиус
-                        color: getColorByBattery(scooter.battery),
-                        fillColor: 'transparent',
-                        fillOpacity: 0,
-                        weight: 3
-                    }).addTo(map);
-
-                    // Устанавливаем "толщину" обводки в зависимости от заряда
-                    // Это делается через scale, а не через radius, чтобы не сдвигать маркер
-                    // Но Leaflet не поддерживает scale напрямую, поэтому используем radius
-                    // и немного увеличим его пропорционально
-                    circle.setRadius(Math.max(5, (scooter.battery / 100) * 20));
-
-                    // Сохраняем маркер и круг
-                    markers[scooter.id] = marker;
-                    batteryCircles[scooter.id] = circle;
 
                     // Добавляем popup
                     marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
+
+                    // Сохраняем маркер
+                    markers[scooter.id] = marker;
 
                     // Добавляем в сетку
                     const div = document.createElement('div');
@@ -157,13 +176,6 @@
 
         function rent(id) {
             alert('Аренда самоката #' + id);
-        }
-
-        // Вспомогательная функция для цвета обводки
-        function getColorByBattery(battery) {
-            if (battery > 70) return '#4CAF50'; // зелёный
-            if (battery > 30) return '#FF9800'; // оранжевый
-            return '#F44336'; // красный
         }
     </script>
 </body>
