@@ -11,7 +11,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=os.path.join(BASE_DIR, 'static'))
-CORS(app)
+CORS(app, origins=["*"], allow_headers=["*"], supports_credentials=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
