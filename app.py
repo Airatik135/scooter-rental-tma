@@ -186,6 +186,16 @@ def get_scooters():
     except Exception as e:
         return f"Ошибка API: {str(e)}", 500
 
+@app.route('/clear_scooters_except_real')
+def clear_scooters_except_real():
+    try:
+        # Удаляем все, кроме реального
+        Scooter.query.filter(Scooter.imei != "350544507678012").delete()
+        db.session.commit()
+        return "✅ Тестовые самокаты удалены, оставлен только реальный."
+    except Exception as e:
+        return f"❌ Ошибка: {str(e)}"        
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
