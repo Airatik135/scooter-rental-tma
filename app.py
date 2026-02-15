@@ -87,6 +87,22 @@ def init_db():
                 conn.commit()
                 print("✅ Таблицы обновлены")
 
+                # ——— ДОБАВИТЬ РЕАЛЬНЫЙ САМОКАТ ———
+                existing = Scooter.query.filter_by(imei="350544507678012").first()
+                if not existing:
+                    real_scooter = Scooter(
+                        imei="350544507678012",
+                        lat=54.828638,
+                        lng=55.866863,
+                        battery=91,
+                        speed=6.0,
+                        odometer=3024291,
+                        status="available"
+                    )
+                    db.session.add(real_scooter)
+                    db.session.commit()
+                    print("✅ Реальный самокат добавлен")
+
             return
         except Exception as e:
             print(f"[{i+1}/5] Ошибка инициализации: {e}")
@@ -176,29 +192,6 @@ def tst100_webhook():
     except Exception as e:
         print("❌ Ошибка вебхука:", str(e))
         return jsonify({"error": str(e)}), 500
-
-@app.route('/add_real_scooter')
-def add_real_scooter():
-    try:
-        # Удалим все, кроме реального
-        Scooter.query.filter(Scooter.imei != "350544507678012").delete()
-        db.session.commit()
-
-        # Создаём самокат
-        real_scooter = Scooter(
-            imei="350544507678012",
-            lat=54.828638,  # из последнего пакета
-            lng=55.866863,
-            battery=91,
-            speed=6.0,
-            odometer=3024291,  # в метрах
-            status="available"
-        )
-        db.session.add(real_scooter)
-        db.session.commit()
-        return "✅ Реальный самокат добавлен, тестовые удалены!"
-    except Exception as e:
-        return f"❌ Ошибка: {str(e)}"
 
 @app.route('/api/rent/<int:scooter_id>', methods=['POST'])
 def rent_scooter(scooter_id):
