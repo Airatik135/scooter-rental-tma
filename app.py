@@ -9,6 +9,7 @@ import os
 from random import uniform, choice
 from datetime import datetime
 import time
+from sqlalchemy import text
 
 # Определяем корневую папку проекта
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,12 +26,39 @@ def init_db():
         try:
             with app.app_context():
                 db.create_all()
-            print("✅ Таблицы созданы")
+
+                # ——— ДОБАВИТЬ КОЛОНКИ ВРУЧНУЮ ———
+                conn = db.engine.connect()
+
+                # Проверим, есть ли колонка speed
+                try:
+                    conn.execute(text("SELECT speed FROM scooter LIMIT 1;"))
+                except Exception:
+                    print("Добавляем колонку speed...")
+                    conn.execute(text("ALTER TABLE scooter ADD COLUMN speed NUMERIC DEFAULT 0.0;"))
+
+                # Проверим, есть ли odometer
+                try:
+                    conn.execute(text("SELECT odometer FROM scooter LIMIT 1;"))
+                except Exception:
+                    print("Добавляем колонку odometer...")
+                    conn.execute(text("ALTER TABLE scooter ADD COLUMN odometer INTEGER DEFAULT 0;"))
+
+                # last_seen
+                try:
+                    conn.execute(text("SELECT last_seen FROM scooter LIMIT 1;"))
+                except Exception:
+                    print("Добавляем колонку last_seen...")
+                    conn.execute(text("ALTER TABLE scooter ADD COLUMN last_seen DATETIME;"))
+
+                conn.commit()
+                print("✅ Таблицы обновлены")
+
             return
         except Exception as e:
             print(f"[{i+1}/5] Ошибка инициализации: {e}")
             time.sleep(5)
-    raise RuntimeError("Не удалось создать таблицы в PostgreSQL")
+    raise RuntimeError("Не удалось создать таблицы в SQLite")
 
 init_db()
 
@@ -52,7 +80,6 @@ def tma_index():
 def serve_image(filename):
     return send_from_directory(os.path.join(BASE_DIR, 'static', 'tma', 'assets', 'images'), filename)
 
-# ——— ВЕБХУК ДЛЯ FLESPI ———
 @app.route('/api/tst100/webhook', methods=['POST'])
 def tst100_webhook():
     try:
@@ -96,7 +123,6 @@ def tst100_webhook():
         print("Ошибка вебхука:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# ——— API ДЛЯ TMA ———
 @app.route('/api/scooters')
 def get_scooters():
     try:
@@ -115,7 +141,6 @@ def get_scooters():
     except Exception as e:
         return f"Ошибка API: {str(e)}", 500
 
-# ——— ИНИЦИАЛИЗАЦИЯ ———
 @app.route('/generate_scooters_tuymazy')
 def generate_scooters_tuymazy():
     try:
