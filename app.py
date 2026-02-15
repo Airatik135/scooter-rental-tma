@@ -31,12 +31,10 @@ def send_command_to_tst100(imei, command):
         print("⚠️ FLESPI_TOKEN не установлен в переменных окружения")
         return False
 
-    # ✅ Правильный URL
-    url = f"https://flespi.io/gw/channels/send"
+    # ✅ Правильный URL: через GW API
+    url = f"https://flespi.io/gw/devices/{imei}/commands/send"
     
     payload = {
-        "channel": "ch1347501.flespi.gw",  # ID твоего канала
-        "devices": [imei],  # IMEI устройства
         "commands": [command]  # Команда
     }
     
