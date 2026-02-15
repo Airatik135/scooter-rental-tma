@@ -84,157 +84,95 @@
 <body>
     <div id="map"></div>
     <div id="scooters-list">
-        <div class="scooter-grid" id="scooters-container">Загрузка...</div>
+        <div class="scooter-grid" id="scooters-container">Загрузка самокатов...</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         Telegram.WebApp.ready();
 
-        // Проверяем, зарегистрирован ли пользователь
-        const tg = window.Telegram.WebApp;
-        const userId = tg.initDataUnsafe?.user?.id;
+        // Инициализация карты (Туймазы)
+        const map = L.map('map').setView([54.6046, 53.7066], 14);
 
-        if (!userId) {
-            alert("Для использования приложения нужен Telegram ID.");
-            tg.close();
-            return;
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let markers = {};
+
+        // Функция для создания кастомного маркера
+        function createScooterIcon(battery, id) {
+            const color = battery > 70 ? '#4CAF50' :
+                         battery > 30 ? '#FF9800' : '#F44336';
+
+            // Радиус обводки зависит от заряда (от 12 до 24 px)
+            const radius = 12 + (battery / 100) * 12; // min 12, max 24
+            const iconSize = 30; // иконка 30x30
+
+            return L.divIcon({
+                className: 'scooter-marker',
+                html: `
+                    <div style="
+                        position: relative;
+                        width: ${radius * 2}px;
+                        height: ${radius * 2}px;
+                        border-radius: 50%;
+                        border: 3px solid ${color};
+                        background: transparent;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">
+                        <img src="https://scooter-rental-tma-production.up.railway.app/tma/assets/images/scooter-icon.png"
+                             width="${iconSize}" height="${iconSize}"
+                             style="position: relative; z-index: 1;">
+                    </div>
+                `,
+                popupAnchor: [0, -radius - 10],
+                iconSize: [radius * 2, radius * 2],
+                iconAnchor: [radius, radius]
+            });
         }
 
-        fetch(`/api/check_user/${userId}`)
-            .then(r => r.json())
-            .then(userData => {
-                if (!userData.exists) {
-                    showRegistrationForm(userId);
-                } else {
-                    loadMainPage(userData.user);
-                }
+        // Загрузка самокатов с сервера
+        fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
+            .then(r => {
+                if (!r.ok) throw new Error('Network response was not ok');
+                return r.json();
+            })
+            .then(data => {
+                console.log('Самокаты:', data);
+                const container = document.getElementById('scooters-container');
+                container.innerHTML = '';
+
+                data.forEach(scooter => {
+                    // Создаём кастомный маркер
+                    const icon = createScooterIcon(scooter.battery, scooter.id);
+                    const marker = L.marker([scooter.lat, scooter.lng], {icon: icon}).addTo(map);
+
+                    // Добавляем popup
+                    marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
+
+                    // Сохраняем маркер
+                    markers[scooter.id] = marker;
+
+                    // Добавляем в сетку
+                    const div = document.createElement('div');
+                    div.className = 'scooter';
+                    div.innerHTML = `
+                        <h3>Ninebot Max Pro #${scooter.id}</h3>
+                        <p>📍 ${scooter.lat.toFixed(4)}, ${scooter.lng.toFixed(4)}</p>
+                        <p>🔋 Заряд: ${scooter.battery}%</p>
+                        <p>🚦 Статус: ${scooter.status === 'available' ? 'Доступен' : scooter.status === 'in_use' ? 'В аренде' : 'Неисправен'}</p>
+                        <button class="btn-rent" onclick="rent(${scooter.id})">Арендовать</button>
+                    `;
+                    container.appendChild(div);
+                });
             })
             .catch(err => {
-                console.error("Ошибка проверки пользователя:", err);
-                alert("Ошибка подключения к серверу");
+                console.error('Ошибка загрузки:', err);
+                document.getElementById('scooters-container').innerHTML = `<p>Ошибка: ${err.message}</p>`;
             });
-
-        function showRegistrationForm(userId) {
-            document.body.innerHTML = `
-                <div style="padding: 20px;">
-                    <h2>Регистрация</h2>
-                    <label>Номер телефона:</label>
-                    <input type="tel" id="phone" placeholder="+7 (XXX) XXX-XX-XX"><br><br>
-
-                    <label>Токен карты (опционально):</label>
-                    <input type="text" id="card_token" placeholder="token от ЮKassa"><br><br>
-
-                    <button onclick="register(${userId})">Зарегистрироваться</button>
-                </div>
-            `;
-        }
-
-        function register(userId) {
-            const phone = document.getElementById('phone').value;
-            const cardToken = document.getElementById('card_token').value;
-
-            fetch('/api/register', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({telegram_id: userId, phone, card_token: cardToken})
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    alert("Успешно зарегистрирован!");
-                    loadMainPage(data.user);
-                } else {
-                    alert("Ошибка: " + data.message);
-                }
-            });
-        }
-
-        function loadMainPage(user) {
-            // Очищаем страницу и вставляем карту и список
-            document.body.innerHTML = `
-                <div id="map"></div>
-                <div id="scooters-list">
-                    <div class="scooter-grid" id="scooters-container">Загрузка самокатов...</div>
-                </div>
-            `;
-
-            // Инициализация карты (Туймазы)
-            const map = L.map('map').setView([54.6046, 53.7066], 14);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-
-            let markers = {};
-
-            // Функция для создания кастомного маркера
-            function createScooterIcon(battery, id) {
-                const color = battery > 70 ? '#4CAF50' :
-                             battery > 30 ? '#FF9800' : '#F44336';
-
-                const radius = 12 + (battery / 100) * 12;
-                const iconSize = 30;
-
-                return L.divIcon({
-                    className: 'scooter-marker',
-                    html: `
-                        <div style="
-                            position: relative;
-                            width: ${radius * 2}px;
-                            height: ${radius * 2}px;
-                            border-radius: 50%;
-                            border: 3px solid ${color};
-                            background: transparent;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                        ">
-                            <img src="https://scooter-rental-tma-production.up.railway.app/tma/assets/images/scooter-icon.png"
-                                 width="${iconSize}" height="${iconSize}"
-                                 style="position: relative; z-index: 1;">
-                        </div>
-                    `,
-                    popupAnchor: [0, -radius - 10],
-                    iconSize: [radius * 2, radius * 2],
-                    iconAnchor: [radius, radius]
-                });
-            }
-
-            // Загрузка самокатов с сервера
-            fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
-                .then(r => {
-                    if (!r.ok) throw new Error('Network response was not ok');
-                    return r.json();
-                })
-                .then(data => {
-                    console.log('Самокаты:', data);
-                    const container = document.getElementById('scooters-container');
-                    container.innerHTML = '';
-
-                    data.forEach(scooter => {
-                        const icon = createScooterIcon(scooter.battery, scooter.id);
-                        const marker = L.marker([scooter.lat, scooter.lng], {icon: icon}).addTo(map);
-                        marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
-                        markers[scooter.id] = marker;
-
-                        const div = document.createElement('div');
-                        div.className = 'scooter';
-                        div.innerHTML = `
-                            <h3>Ninebot Max Pro #${scooter.id}</h3>
-                            <p>📍 ${scooter.lat.toFixed(4)}, ${scooter.lng.toFixed(4)}</p>
-                            <p>🔋 Заряд: ${scooter.battery}%</p>
-                            <p>🚦 Статус: ${scooter.status === 'available' ? 'Доступен' : scooter.status === 'in_use' ? 'В аренде' : 'Неисправен'}</p>
-                            <button class="btn-rent" onclick="rent(${scooter.id})">Арендовать</button>
-                        `;
-                        container.appendChild(div);
-                    });
-                })
-                .catch(err => {
-                    console.error('Ошибка загрузки:', err);
-                    document.getElementById('scooters-container').innerHTML = `<p>Ошибка: ${err.message}</p>`;
-                });
-        }
 
         function rent(id) {
             alert('Аренда самоката #' + id);

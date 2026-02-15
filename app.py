@@ -12,12 +12,7 @@ from random import uniform, choice
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder=os.path.join(BASE_DIR, 'static'))
-CORS(app, origins=[
-    "https://tma.telegram.org",
-    "https://web.telegram.org",
-    "https://scooter-rental-tma-production.up.railway.app",
-    "https://*.railway.app"
-], allow_headers=["*"], supports_credentials=True)
+CORS(app, origins=["*"], allow_headers=["*"], supports_credentials=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -33,9 +28,9 @@ def init_db():
             print("✅ Таблицы созданы")
             return
         except Exception as e:
-            print(f"Попытка {i+1}/5: ошибка инициализации БД: {e}")
+            print(f"[{i+1}/5] Ошибка инициализации: {e}")
             time.sleep(5)
-    raise RuntimeError("Не удалось подключиться к PostgreSQL")
+    raise RuntimeError("Не удалось создать таблицы в PostgreSQL")
 
 init_db()
 
@@ -56,37 +51,6 @@ def tma_index():
 @app.route('/tma/assets/images/<path:filename>')
 def serve_image(filename):
     return send_from_directory(os.path.join(BASE_DIR, 'static', 'tma', 'assets', 'images'), filename)
-
-@app.route('/api/check_user/<int:telegram_id>')
-def check_user(telegram_id):
-    user = User.query.filter_by(telegram_id=telegram_id).first()
-    if user:
-        return jsonify({'exists': True, 'user': {
-            'id': user.id,
-            'phone': user.phone,
-            'balance': user.balance
-        }})
-    return jsonify({'exists': False})
-
-@app.route('/api/register', methods=['POST'])
-def register_user():
-    data = request.json
-    user = User(
-        telegram_id=data['telegram_id'],
-        phone=data.get('phone'),
-        card_token=data.get('card_token'),
-        balance=0.0
-    )
-    try:
-        db.session.add(user)
-        db.session.commit()
-        return jsonify({'success': True, 'user': {
-            'id': user.id,
-            'phone': user.phone,
-            'balance': user.balance
-        }})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/scooters')
 def get_scooters():
@@ -133,7 +97,7 @@ def generate_scooters_tuymazy():
         center_lng = 53.7066
 
         statuses = ['available', 'available', 'available', 'in_use', 'offline']
-        batteries = list(range(20, 101))
+        batteries = list(range(20, 101))  # от 20 до 100%
 
         scooters = []
         for i in range(1, 16):
