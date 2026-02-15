@@ -141,40 +141,6 @@ def get_scooters():
     except Exception as e:
         return f"Ошибка API: {str(e)}", 500
 
-@app.route('/generate_scooters_tuymazy')
-def generate_scooters_tuymazy():
-    try:
-        Scooter.query.delete()
-        db.session.commit()
-
-        center_lat = 54.6046
-        center_lng = 53.7066
-
-        statuses = ['available', 'available', 'available', 'in_use', 'offline']
-        batteries = list(range(20, 101))
-
-        for i in range(1, 16):
-            lat = round(center_lat + uniform(-0.01, 0.01), 6)
-            lng = round(center_lng + uniform(-0.01, 0.01), 6)
-            battery = choice(batteries)
-            status = choice(statuses)
-
-            s = Scooter(
-                imei=f"35{i:013}",
-                lat=lat,
-                lng=lng,
-                battery=battery,
-                status=status,
-                speed=0.0,
-                odometer=0
-            )
-            db.session.add(s)
-
-        db.session.commit()
-        return f"✅ 15 самокатов добавлено в Туймазы!"
-    except Exception as e:
-        return f"Ошибка: {str(e)}", 500
-
 @app.route('/add_real_scooter')
 def add_real_scooter():
     try:
