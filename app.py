@@ -87,39 +87,42 @@ def add_test_scooters():
     except Exception as e:
         return f"Ошибка: {str(e)}", 500
 
-@app.route('/generate_scooters_tuymazy')
-def generate_scooters_tuymazy():
+@app.route('/api/tst100/webhook', methods=['POST'])
+def tst100_webhook():
     try:
-        Scooter.query.delete()
-        db.session.commit()
+        data = request.get_json()
+        print("Получен вебхук:", data)
 
-        center_lat = 54.6046
-        center_lng = 53.7066
+        # Извлечение данных (адаптируем под реальный JSON из Flespi)
+        imei = data.get('device', {}).get('imei') or data.get('imei')
+        if not imei:
+            return jsonify({"error": "IMEI not found"}), 400
 
-        statuses = ['available', 'available', 'available', 'in_use', 'offline']
-        batteries = list(range(20, 101))  # от 20 до 100%
+        position = data.get('position', {})
+        lat = position.get('latitude')
+        lng = position.get('longitude')
+        battery = data.get('battery.level') or data.get('battery')
+        voltage = data.get('external.battery.voltage')
+        speed = data.get('position.speed')
+        odometer = data.get('vehicle.mileage')
 
-        scooters = []
-        for i in range(1, 16):
-            lat = round(center_lat + uniform(-0.01, 0.01), 6)
-            lng = round(center_lng + uniform(-0.01, 0.01), 6)
-            battery = choice(batteries)
-            status = choice(statuses)
+        # Обновление в БД
+        scooter = Scooter.query.filter_by(imei=imei).first()
+        if scooter:
+            scooter.lat = lat
+            scooter.lng = lng
+            scooter.battery = int(battery) if battery else scooter.battery
+            scooter.speed = float(speed) if speed else 0.0
+            scooter.odometer = int(odometer) if odometer else scooter.odometer
+            scooter.last_seen = datetime.utcnow()
+            db.session.commit()
+            return jsonify({"status": "ok", "scooter_id": scooter.id}), 200
+        else:
+            return jsonify({"error": f"Scooter with IMEI {imei} not found"}), 404
 
-            s = Scooter(
-                imei=f"35{str(i).zfill(13)}",
-                lat=lat,
-                lng=lng,
-                battery=battery,
-                status=status
-            )
-            scooters.append(s)
-            db.session.add(s)
-
-        db.session.commit()
-        return f"✅ 15 самокатов добавлено в Туймазы!"
     except Exception as e:
-        return f"Ошибка: {str(e)}", 500
+        print("Ошибка вебхука:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
