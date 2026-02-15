@@ -83,28 +83,41 @@ def serve_image(filename):
 @app.route('/api/tst100/webhook', methods=['POST'])
 def tst100_webhook():
     try:
+        # Логируем всё тело запроса
+        raw_data = request.get_data(as_text=True)
+        print("=== НАЧАЛО ВЕБХУКА ===")
+        print("RAW DATA:", raw_data)
+        
+        # Пытаемся распарсить JSON
         data = request.get_json()
-        print("Вебхук получен:", data)
+        print("PARSED JSON:", data)
+        print("=== КОНЕЦ ВЕБХУКА ===")
 
         # Извлечение IMEI
         imei = data.get('device', {}).get('imei') or data.get('imei')
         if not imei:
+            print("❌ IMEI не найден в JSON")
             return jsonify({"error": "IMEI not found"}), 400
 
-        # Извлечение данных
+        # Извлечение координат
         position = data.get('position', {})
         lat = position.get('latitude')
         lng = position.get('longitude')
-        battery = data.get('battery.level') or data.get('battery')
-        voltage = data.get('external.battery.voltage')
-        speed = data.get('position.speed')
-        odometer = data.get('vehicle.mileage')
 
-        # Обновление самоката в БД
+        # Извлечение других данных
+        battery = data.get('battery', {}).get('level') or data.get('battery')
+        voltage = data.get('external.battery', {}).get('voltage')
+        speed = position.get('speed')
+        odometer = data.get('vehicle', {}).get('mileage') or data.get('odometer')
+
+        # Поиск самоката в БД
         scooter = Scooter.query.filter_by(imei=imei).first()
         if scooter:
-            scooter.lat = lat
-            scooter.lng = lng
+            # Обновляем данные
+            if lat is not None:
+                scooter.lat = lat
+            if lng is not None:
+                scooter.lng = lng
             if battery is not None:
                 scooter.battery = int(battery)
             if speed is not None:
@@ -112,15 +125,16 @@ def tst100_webhook():
             if odometer is not None:
                 scooter.odometer = int(odometer)
             scooter.last_seen = datetime.utcnow()
+
             db.session.commit()
-            print(f"✅ Самокат {scooter.id} обновлён по вебхуку")
+            print(f"✅ Самокат {scooter.id} обновлён: lat={lat}, lng={lng}, bat={battery}%")
             return jsonify({"status": "ok", "scooter_id": scooter.id}), 200
         else:
-            print(f"⚠️ Самокат с IMEI {imei} не найден")
+            print(f"❌ Самокат с IMEI {imei} не найден в БД")
             return jsonify({"error": f"Scooter with IMEI {imei} not found"}), 404
 
     except Exception as e:
-        print("Ошибка вебхука:", str(e))
+        print("❌ Ошибка вебхука:", str(e))
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/scooters')
