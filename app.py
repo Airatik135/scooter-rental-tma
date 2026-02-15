@@ -32,7 +32,7 @@ def send_command_to_tst100(imei, command):
         return False
 
     # ✅ Правильный URL: через GW API
-    url = f"https://flespi.io/gw/devices/{imei}/commands/send"
+    url = f"https://flespi.io/mqtt/messages/publish"
     
     payload = {
         "commands": [command]  # Команда
