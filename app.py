@@ -22,17 +22,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # ——— FLESPI TOKEN ———
 FLESPI_TOKEN = os.getenv('FLESPI_TOKEN', 'YOUR_FLESPI_TOKEN_HERE')
 
-def send_command_to_tst100(imei, command):
+def send_command_to_tst100(device_id, command):
     """
     Отправляет команду на TST100 через Flespi
     command: 'sclockctrl 0' (разблокировать) или 'sclockctrl 1' (заблокировать)
+    device_id: ID устройства в Flespi (например, 7738860)
     """
     if FLESPI_TOKEN == 'YOUR_FLESPI_TOKEN_HERE':
         print("⚠️ FLESPI_TOKEN не установлен в переменных окружения")
         return False
 
-    # ✅ Правильный URL: через GW API
-    url = f"https://flespi.io/mqtt/messages/publish"
+    # ✅ Правильный URL: через Device ID
+    url = f"https://flespi.io/gw/devices/{device_id}/commands/send"
     
     payload = {
         "commands": [command]  # Команда
@@ -211,7 +212,8 @@ def rent_scooter(scooter_id):
         db.session.commit()
 
         # Отправляем команду разблокировки в TST100
-        success = send_command_to_tst100(scooter.imei, "sclockctrl 0")
+        # ✅ Используем Device ID из Flespi (найди его в панели)
+        success = send_command_to_tst100(device_id=7738860, command="sclockctrl 0")
         if success:
             message = "Самокат успешно арендован и разблокирован"
         else:
@@ -242,7 +244,7 @@ def end_rent_scooter(scooter_id):
         db.session.commit()
 
         # Отправляем команду блокировки в TST100
-        success = send_command_to_tst100(scooter.imei, "sclockctrl 1")
+        success = send_command_to_tst100(device_id=7738860, command="sclockctrl 1")
         if success:
             message = "Аренда успешно завершена и самокат заблокирован"
         else:
