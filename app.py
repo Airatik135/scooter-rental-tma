@@ -168,6 +168,60 @@ def add_real_scooter():
     except Exception as e:
         return f"❌ Ошибка: {str(e)}"
 
+@app.route('/api/rent/<int:scooter_id>', methods=['POST'])
+def rent_scooter(scooter_id):
+    try:
+        scooter = Scooter.query.get_or_404(scooter_id)
+
+        if scooter.status != 'available':
+            return jsonify({"success": False, "message": "Самокат недоступен для аренды"}), 400
+
+        # Изменяем статус
+        scooter.status = 'in_use'
+        db.session.commit()
+
+        # Здесь можно отправить команду на разблокировку через Flespi
+        # send_unlock_command_to_device(scooter.imei)
+
+        return jsonify({
+            "success": True,
+            "message": "Самокат успешно арендован",
+            "scooter": {
+                "id": scooter.id,
+                "status": scooter.status
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/end_rent/<int:scooter_id>', methods=['POST'])
+def end_rent_scooter(scooter_id):
+    try:
+        scooter = Scooter.query.get_or_404(scooter_id)
+
+        if scooter.status != 'in_use':
+            return jsonify({"success": False, "message": "Самокат не находится в аренде"}), 400
+
+        # Изменяем статус
+        scooter.status = 'available'
+        db.session.commit()
+
+        # Здесь можно отправить команду на блокировку через Flespi
+        # send_lock_command_to_device(scooter.imei)
+
+        return jsonify({
+            "success": True,
+            "message": "Аренда успешно завершена",
+            "scooter": {
+                "id": scooter.id,
+                "status": scooter.status
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @app.route('/api/scooters')
 def get_scooters():
     try:
@@ -185,16 +239,6 @@ def get_scooters():
         return jsonify(result)
     except Exception as e:
         return f"Ошибка API: {str(e)}", 500
-
-@app.route('/clear_scooters_except_real')
-def clear_scooters_except_real():
-    try:
-        # Удаляем все, кроме реального
-        Scooter.query.filter(Scooter.imei != "350544507678012").delete()
-        db.session.commit()
-        return "✅ Тестовые самокаты удалены, оставлен только реальный."
-    except Exception as e:
-        return f"❌ Ошибка: {str(e)}"        
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
