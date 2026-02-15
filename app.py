@@ -160,32 +160,7 @@ def get_scooters():
         } for s in scooters]
         return jsonify(result)
     except Exception as e:
-        return f"Ошибка API: {str(e)}", 500
-
-@app.route('/add_real_scooter')
-def add_real_scooter():
-    try:
-        # Проверим, есть ли уже такой самокат
-        existing = Scooter.query.filter_by(imei="350544507678012").first()
-        if existing:
-            db.session.delete(existing)
-            db.session.commit()
-
-        # Создаём самокат
-        real_scooter = Scooter(
-            imei="350544507678012",
-            lat=54.8288017,  # начальные координаты
-            lng=55.8661017,
-            battery=93,
-            status="available",
-            speed=0.0,
-            odometer=3024291
-        )
-        db.session.add(real_scooter)
-        db.session.commit()
-        return "✅ Реальный самокат добавлен!"
-    except Exception as e:
-        return f"❌ Ошибка: {str(e)}"        
+        return f"Ошибка API: {str(e)}", 500     
 
 @app.route('/add_real_scooter')
 def add_real_scooter():
