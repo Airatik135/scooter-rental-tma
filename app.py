@@ -6,6 +6,7 @@ from models.user import User
 from models.scooter import Scooter
 from models.ride import Ride
 import os
+import requests
 from datetime import datetime
 import time
 from sqlalchemy import text
@@ -17,6 +18,39 @@ app = Flask(__name__, static_folder=os.path.join(BASE_DIR, 'static'))
 CORS(app, origins=["*"], allow_headers=["*"], supports_credentials=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# ——— FLESPI TOKEN ———
+FLESPI_TOKEN = os.getenv('FLESPI_TOKEN', 'YOUR_FLESPI_TOKEN_HERE')
+
+def send_command_to_tst100(imei, command):
+    """
+    Отправляет команду на TST100 через Flespi
+    command: 'sclockctrl 0' (разблокировать) или 'sclockctrl 1' (заблокировать)
+    """
+    if FLESPI_TOKEN == 'YOUR_FLESPI_TOKEN_HERE':
+        print("⚠️ FLESPI_TOKEN не установлен в переменных окружения")
+        return False
+
+    url = f"https://flespi.io/channels/send"
+    
+    payload = {
+        "channel": "ch1347501.flespi.gw",  # ID твоего канала
+        "devices": [imei],  # IMEI устройства
+        "commands": [command]  # Команда
+    }
+    
+    headers = {
+        "Authorization": f"FlespiToken {FLESPI_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        print(f"Команда '{command}' отправлена. Ответ: {response.status_code}")
+        return response.status_code == 200
+    except Exception as e:
+        print(f"❌ Ошибка отправки команды: {e}")
+        return False
 
 db.init_app(app)
 
@@ -146,11 +180,9 @@ def tst100_webhook():
 @app.route('/add_real_scooter')
 def add_real_scooter():
     try:
-        # Удалим старый, если есть
-        existing = Scooter.query.filter_by(imei="350544507678012").first()
-        if existing:
-            db.session.delete(existing)
-            db.session.commit()
+        # Удалим все, кроме реального
+        Scooter.query.filter(Scooter.imei != "350544507678012").delete()
+        db.session.commit()
 
         # Создаём самокат
         real_scooter = Scooter(
@@ -164,7 +196,7 @@ def add_real_scooter():
         )
         db.session.add(real_scooter)
         db.session.commit()
-        return "✅ Реальный самокат добавлен!"
+        return "✅ Реальный самокат добавлен, тестовые удалены!"
     except Exception as e:
         return f"❌ Ошибка: {str(e)}"
 
@@ -180,12 +212,16 @@ def rent_scooter(scooter_id):
         scooter.status = 'in_use'
         db.session.commit()
 
-        # Здесь можно отправить команду на разблокировку через Flespi
-        # send_unlock_command_to_device(scooter.imei)
+        # Отправляем команду разблокировки в TST100
+        success = send_command_to_tst100(scooter.imei, "sclockctrl 0")
+        if success:
+            message = "Самокат успешно арендован и разблокирован"
+        else:
+            message = "Самокат арендован, но не удалось отправить команду разблокировки"
 
         return jsonify({
             "success": True,
-            "message": "Самокат успешно арендован",
+            "message": message,
             "scooter": {
                 "id": scooter.id,
                 "status": scooter.status
@@ -207,12 +243,16 @@ def end_rent_scooter(scooter_id):
         scooter.status = 'available'
         db.session.commit()
 
-        # Здесь можно отправить команду на блокировку через Flespi
-        # send_lock_command_to_device(scooter.imei)
+        # Отправляем команду блокировки в TST100
+        success = send_command_to_tst100(scooter.imei, "sclockctrl 1")
+        if success:
+            message = "Аренда успешно завершена и самокат заблокирован"
+        else:
+            message = "Аренда завершена, но не удалось отправить команду блокировки"
 
         return jsonify({
             "success": True,
-            "message": "Аренда успешно завершена",
+            "message": message,
             "scooter": {
                 "id": scooter.id,
                 "status": scooter.status
@@ -225,17 +265,21 @@ def end_rent_scooter(scooter_id):
 @app.route('/api/scooters')
 def get_scooters():
     try:
-        scooters = Scooter.query.all()
-        result = [{
-            'id': s.id,
-            'imei': s.imei,
-            'lat': s.lat,
-            'lng': s.lng,
-            'battery': s.battery,
-            'status': s.status,
-            'speed': s.speed,
-            'odometer': s.odometer
-        } for s in scooters]
+        # Возвращаем только реальный самокат
+        scooter = Scooter.query.filter_by(imei="350544507678012").first()
+        if scooter:
+            result = [{
+                'id': scooter.id,
+                'imei': scooter.imei,
+                'lat': scooter.lat,
+                'lng': scooter.lng,
+                'battery': scooter.battery,
+                'status': scooter.status,
+                'speed': scooter.speed,
+                'odometer': scooter.odometer
+            }]
+        else:
+            result = []
         return jsonify(result)
     except Exception as e:
         return f"Ошибка API: {str(e)}", 500
