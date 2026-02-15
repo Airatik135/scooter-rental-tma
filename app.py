@@ -6,7 +6,6 @@ from models.user import User
 from models.scooter import Scooter
 from models.ride import Ride
 import os
-from random import uniform, choice
 from datetime import datetime
 import time
 from sqlalchemy import text
@@ -144,24 +143,6 @@ def tst100_webhook():
         print("❌ Ошибка вебхука:", str(e))
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/scooters')
-def get_scooters():
-    try:
-        scooters = Scooter.query.all()
-        result = [{
-            'id': s.id,
-            'imei': s.imei,
-            'lat': s.lat,
-            'lng': s.lng,
-            'battery': s.battery,
-            'status': s.status,
-            'speed': s.speed,
-            'odometer': s.odometer
-        } for s in scooters]
-        return jsonify(result)
-    except Exception as e:
-        return f"Ошибка API: {str(e)}", 500     
-
 @app.route('/add_real_scooter')
 def add_real_scooter():
     try:
@@ -185,7 +166,25 @@ def add_real_scooter():
         db.session.commit()
         return "✅ Реальный самокат добавлен!"
     except Exception as e:
-        return f"❌ Ошибка: {str(e)}"        
+        return f"❌ Ошибка: {str(e)}"
+
+@app.route('/api/scooters')
+def get_scooters():
+    try:
+        scooters = Scooter.query.all()
+        result = [{
+            'id': s.id,
+            'imei': s.imei,
+            'lat': s.lat,
+            'lng': s.lng,
+            'battery': s.battery,
+            'status': s.status,
+            'speed': s.speed,
+            'odometer': s.odometer
+        } for s in scooters]
+        return jsonify(result)
+    except Exception as e:
+        return f"Ошибка API: {str(e)}", 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
