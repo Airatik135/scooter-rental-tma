@@ -31,7 +31,8 @@ def send_command_to_tst100(imei, command):
         print("⚠️ FLESPI_TOKEN не установлен в переменных окружения")
         return False
 
-    url = f"https://flespi.io/channels/send"
+    # ✅ Правильный URL
+    url = f"https://flespi.io/gw/channels/send"
     
     payload = {
         "channel": "ch1347501.flespi.gw",  # ID твоего канала
@@ -47,6 +48,12 @@ def send_command_to_tst100(imei, command):
     try:
         response = requests.post(url, json=payload, headers=headers)
         print(f"Команда '{command}' отправлена. Ответ: {response.status_code}")
+        
+        if response.status_code == 200:
+            print("✅ Команда успешно отправлена в Flespi")
+        else:
+            print(f"❌ Ошибка: {response.text}")
+        
         return response.status_code == 200
     except Exception as e:
         print(f"❌ Ошибка отправки команды: {e}")
