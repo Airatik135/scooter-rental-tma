@@ -105,9 +105,8 @@
             const color = battery > 70 ? '#4CAF50' :
                          battery > 30 ? '#FF9800' : '#F44336';
 
-            // Радиус обводки зависит от заряда (от 12 до 24 px)
-            const radius = 12 + (battery / 100) * 12; // min 12, max 24
-            const iconSize = 30; // иконка 30x30
+            const radius = 12 + (battery / 100) * 12;
+            const iconSize = 30;
 
             return L.divIcon({
                 className: 'scooter-marker',
@@ -135,44 +134,56 @@
         }
 
         // Загрузка самокатов с сервера
-        fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
-            .then(r => {
-                if (!r.ok) throw new Error('Network response was not ok');
-                return r.json();
-            })
-            .then(data => {
-                console.log('Самокаты:', data);
-                const container = document.getElementById('scooters-container');
-                container.innerHTML = '';
+        function loadScooters() {
+            fetch('https://scooter-rental-tma-production.up.railway.app/api/scooters')
+                .then(r => {
+                    if (!r.ok) throw new Error('Network response was not ok');
+                    return r.json();
+                })
+                .then(data => {
+                    console.log('Самокаты:', data);
+                    const container = document.getElementById('scooters-container');
+                    container.innerHTML = '';
 
-                data.forEach(scooter => {
-                    // Создаём кастомный маркер
-                    const icon = createScooterIcon(scooter.battery, scooter.id);
-                    const marker = L.marker([scooter.lat, scooter.lng], {icon: icon}).addTo(map);
+                    // Удаляем старые маркеры
+                    Object.values(markers).forEach(marker => map.removeLayer(marker));
+                    markers = {};
 
-                    // Добавляем popup
-                    marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
+                    data.forEach(scooter => {
+                        // Создаём кастомный маркер
+                        const icon = createScooterIcon(scooter.battery, scooter.id);
+                        const marker = L.marker([scooter.lat, scooter.lng], {icon: icon}).addTo(map);
 
-                    // Сохраняем маркер
-                    markers[scooter.id] = marker;
+                        // Добавляем popup
+                        marker.bindPopup(`<b>Ninebot Max Pro #${scooter.id}</b><br>Заряд: ${scooter.battery}%<br>Статус: ${scooter.status}`);
 
-                    // Добавляем в сетку
-                    const div = document.createElement('div');
-                    div.className = 'scooter';
-                    div.innerHTML = `
-                        <h3>Ninebot Max Pro #${scooter.id}</h3>
-                        <p>📍 ${scooter.lat.toFixed(4)}, ${scooter.lng.toFixed(4)}</p>
-                        <p>🔋 Заряд: ${scooter.battery}%</p>
-                        <p>🚦 Статус: ${scooter.status === 'available' ? 'Доступен' : scooter.status === 'in_use' ? 'В аренде' : 'Неисправен'}</p>
-                        <button class="btn-rent" onclick="rent(${scooter.id})">Арендовать</button>
-                    `;
-                    container.appendChild(div);
+                        // Сохраняем маркер
+                        markers[scooter.id] = marker;
+
+                        // Добавляем в сетку
+                        const div = document.createElement('div');
+                        div.className = 'scooter';
+                        div.innerHTML = `
+                            <h3>Ninebot Max Pro #${scooter.id}</h3>
+                            <p>📍 ${scooter.lat.toFixed(4)}, ${scooter.lng.toFixed(4)}</p>
+                            <p>🔋 Заряд: ${scooter.battery}%</p>
+                            <p>🚦 Статус: ${scooter.status === 'available' ? 'Доступен' : scooter.status === 'in_use' ? 'В аренде' : 'Неисправен'}</p>
+                            <button class="btn-rent" onclick="rent(${scooter.id})">Арендовать</button>
+                        `;
+                        container.appendChild(div);
+                    });
+                })
+                .catch(err => {
+                    console.error('Ошибка загрузки:', err);
+                    document.getElementById('scooters-container').innerHTML = `<p>Ошибка: ${err.message}</p>`;
                 });
-            })
-            .catch(err => {
-                console.error('Ошибка загрузки:', err);
-                document.getElementById('scooters-container').innerHTML = `<p>Ошибка: ${err.message}</p>`;
-            });
+        }
+
+        // Загрузить при старте
+        loadScooters();
+
+        // Обновлять каждые 30 секунд
+        setInterval(loadScooters, 30000);
 
         function rent(id) {
             alert('Аренда самоката #' + id);
