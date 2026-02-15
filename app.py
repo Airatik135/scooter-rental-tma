@@ -83,32 +83,29 @@ def serve_image(filename):
 @app.route('/api/tst100/webhook', methods=['POST'])
 def tst100_webhook():
     try:
-        # Логируем всё тело запроса
-        raw_data = request.get_data(as_text=True)
-        print("=== НАЧАЛО ВЕБХУКА ===")
-        print("RAW DATA:", raw_data)
-        
-        # Пытаемся распарсить JSON
         data = request.get_json()
-        print("PARSED JSON:", data)
-        print("=== КОНЕЦ ВЕБХУКА ===")
+        print("ПОЛУЧЕННЫЙ JSON:", data)
 
-        # Извлечение IMEI
-        imei = data.get('device', {}).get('imei') or data.get('imei')
+        # Извлечение IMEI (в TST100 это поле 'ident')
+        imei = data.get('ident')
         if not imei:
-            print("❌ IMEI не найден в JSON")
+            print("❌ IMEI не найден в JSON (поле 'ident')")
             return jsonify({"error": "IMEI not found"}), 400
 
         # Извлечение координат
         position = data.get('position', {})
         lat = position.get('latitude')
         lng = position.get('longitude')
+        speed = position.get('speed')
+        altitude = position.get('altitude')
 
         # Извлечение других данных
-        battery = data.get('battery', {}).get('level') or data.get('battery')
-        voltage = data.get('external.battery', {}).get('voltage')
-        speed = position.get('speed')
-        odometer = data.get('vehicle', {}).get('mileage') or data.get('odometer')
+        battery_level = data.get('scooter.battery.level') or data.get('battery.level')
+        voltage = data.get('external.powersource.voltage') or data.get('internal.battery.voltage')
+        odometer = data.get('vehicle.mileage')  # в км
+        lock_status = data.get('lock.status')
+        ignition_status = data.get('engine.ignition.status')
+        remaining_mileage = data.get('predicted.remaining.mileage')
 
         # Поиск самоката в БД
         scooter = Scooter.query.filter_by(imei=imei).first()
@@ -118,16 +115,26 @@ def tst100_webhook():
                 scooter.lat = lat
             if lng is not None:
                 scooter.lng = lng
-            if battery is not None:
-                scooter.battery = int(battery)
+            if battery_level is not None:
+                scooter.battery = int(battery_level)
             if speed is not None:
                 scooter.speed = float(speed)
             if odometer is not None:
-                scooter.odometer = int(odometer)
+                scooter.odometer = int(odometer * 1000)  # км → метры (если в БД хранится в метрах)
             scooter.last_seen = datetime.utcnow()
 
+            # Обновляем статус (можно добавить логику)
+            if lock_status is not None:
+                scooter.status = 'locked' if lock_status else 'available'
+            elif ignition_status is not None and not ignition_status:
+                scooter.status = 'offline'
+
             db.session.commit()
-            print(f"✅ Самокат {scooter.id} обновлён: lat={lat}, lng={lng}, bat={battery}%")
+            print(f"✅ Самокат {scooter.id} обновлён:")
+            print(f"   - Координаты: {lat}, {lng}")
+            print(f"   - Заряд: {battery_level}%")
+            print(f"   - Скорость: {speed} km/h")
+            print(f"   - Пробег: {odometer} km")
             return jsonify({"status": "ok", "scooter_id": scooter.id}), 200
         else:
             print(f"❌ Самокат с IMEI {imei} не найден в БД")
@@ -173,6 +180,31 @@ def add_real_scooter():
             status="available",
             speed=0.0,
             odometer=3024291
+        )
+        db.session.add(real_scooter)
+        db.session.commit()
+        return "✅ Реальный самокат добавлен!"
+    except Exception as e:
+        return f"❌ Ошибка: {str(e)}"        
+
+@app.route('/add_real_scooter')
+def add_real_scooter():
+    try:
+        # Удалим старый, если есть
+        existing = Scooter.query.filter_by(imei="350544507678012").first()
+        if existing:
+            db.session.delete(existing)
+            db.session.commit()
+
+        # Создаём самокат
+        real_scooter = Scooter(
+            imei="350544507678012",
+            lat=54.828638,  # из последнего пакета
+            lng=55.866863,
+            battery=91,
+            speed=6.0,
+            odometer=3024291,  # в метрах
+            status="available"
         )
         db.session.add(real_scooter)
         db.session.commit()
